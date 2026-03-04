@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VEXYL-STT Test</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+  .container { width: 480px; padding: 32px; background: #16213e; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #888; margin-bottom: 24px; }
+  .status { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; font-size: 14px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #555; flex-shrink: 0; }
+  .dot.connected { background: #00c853; }
+  .dot.recording { background: #ff1744; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .controls { display: flex; gap: 12px; margin-bottom: 20px; }
+  select { flex: 1; padding: 10px 12px; border-radius: 8px; border: 1px solid #333; background: #0f3460; color: #eee; font-size: 14px; }
+  button { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #connectBtn { background: #0f3460; color: #eee; border: 1px solid #444; }
+  #connectBtn:hover:not(:disabled) { background: #1a4a8a; }
+  #recordBtn { background: #e94560; color: #fff; flex-shrink: 0; }
+  #recordBtn:hover:not(:disabled) { background: #ff1744; }
+  #recordBtn.active { background: #b71c1c; }
+  .transcript-box { background: #0f3460; border-radius: 8px; padding: 16px; min-height: 180px; max-height: 360px; overflow-y: auto; font-size: 14px; line-height: 1.6; }
+  .transcript-box .placeholder { color: #555; font-style: italic; }
+  .entry { margin-bottom: 8px; padding: 8px 12px; background: #1a1a2e; border-radius: 6px; }
+  .entry .lang { font-size: 11px; color: #e94560; text-transform: uppercase; margin-bottom: 2px; }
+  .entry .text { color: #eee; }
+  .entry .meta { font-size: 11px; color: #666; margin-top: 2px; }
+  .log { margin-top: 16px; font-size: 11px; color: #555; max-height: 80px; overflow-y: auto; }
+  .log div { padding: 1px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>VEXYL-STT</h1>
+  <p class="subtitle">WebSocket speech-to-text test client</p>
+
+  <div class="status">
+    <div class="dot" id="statusDot"></div>
+    <span id="statusText">Disconnected</span>
+  </div>
+
+  <div class="controls">
+    <select id="langSelect">
+      <option value="ml-IN">Malayalam (ml-IN)</option>
+      <option value="hi-IN">Hindi (hi-IN)</option>
+      <option value="ta-IN">Tamil (ta-IN)</option>
+      <option value="te-IN">Telugu (te-IN)</option>
+      <option value="kn-IN">Kannada (kn-IN)</option>
+      <option value="bn-IN">Bengali (bn-IN)</option>
+      <option value="gu-IN">Gujarati (gu-IN)</option>
+      <option value="mr-IN">Marathi (mr-IN)</option>
+      <option value="pa-IN">Punjabi (pa-IN)</option>
+      <option value="or-IN">Odia (or-IN)</option>
+      <option value="as-IN">Assamese (as-IN)</option>
+      <option value="ur-IN">Urdu (ur-IN)</option>
+      <option value="sa-IN">Sanskrit (sa-IN)</option>
+      <option value="ne-IN">Nepali (ne-IN)</option>
+    </select>
+    <button id="connectBtn" onclick="toggleConnection()">Connect</button>
+  </div>
+
+  <div style="margin-bottom: 20px; text-align: center;">
+    <button id="recordBtn" disabled onclick="toggleRecording()">Hold to Record</button>
+  </div>
+
+  <div class="transcript-box" id="transcriptBox">
+    <div class="placeholder">Transcriptions will appear here...</div>
+  </div>
+
+  <div class="log" id="logBox"></div>
+</div>
+
+<script>
+const WS_URL = 'ws://127.0.0.1:8091';
+const SAMPLE_RATE = 16000;
+
+let ws = null;
+let mediaStream = null;
+let audioContext = null;
+let processor = null;
+let isRecording = false;
+let sessionId = 0;
+
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const connectBtn = document.getElementById('connectBtn');
+const recordBtn = document.getElementById('recordBtn');
+const langSelect = document.getElementById('langSelect');
+const transcriptBox = document.getElementById('transcriptBox');
+const logBox = document.getElementById('logBox');
+
+function log(msg) {
+  const d = document.createElement('div');
+  d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  logBox.appendChild(d);
+  logBox.scrollTop = logBox.scrollHeight;
+  console.log(msg);
+}
+
+function setStatus(text, state) {
+  statusText.textContent = text;
+  statusDot.className = 'dot' + (state ? ' ' + state : '');
+}
+
+function toggleConnection() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.close();
+    return;
+  }
+  connect();
+}
+
+function connect() {
+  setStatus('Connecting...', '');
+  connectBtn.disabled = true;
+  log('Connecting to ' + WS_URL);
+
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    log('WebSocket connected');
+  };
+
+  ws.onmessage = (e) => {
+    let msg;
+    try {
+      msg = JSON.parse(e.data);
+    } catch (err) {
+      log('Failed to parse server message: ' + err.message);
+      return;
+    }
+    log('Received: ' + JSON.stringify(msg));
+
+    if (msg.type === 'ready') {
+      setStatus('Connected — ' + msg.model, 'connected');
+      connectBtn.textContent = 'Disconnect';
+      connectBtn.disabled = false;
+      recordBtn.disabled = false;
+    } else if (msg.type === 'started') {
+      log('Session started: ' + msg.session_id);
+    } else if (msg.type === 'final') {
+      addTranscript(msg);
+    } else if (msg.type === 'stopped') {
+      log('Session stopped');
+    }
+  };
+
+  ws.onerror = (e) => {
+    log('WebSocket error');
+    setStatus('Error', '');
+  };
+
+  ws.onclose = () => {
+    log('WebSocket disconnected');
+    setStatus('Disconnected', '');
+    connectBtn.textContent = 'Connect';
+    connectBtn.disabled = false;
+    recordBtn.disabled = true;
+    ws = null;
+    if (isRecording) stopRecording();
+  };
+}
+
+function addTranscript(msg) {
+  const placeholder = transcriptBox.querySelector('.placeholder');
+  if (placeholder) placeholder.remove();
+
+  const entry = document.createElement('div');
+  entry.className = 'entry';
+
+  const langDiv = document.createElement('div');
+  langDiv.className = 'lang';
+  langDiv.textContent = msg.lang;
+
+  const textDiv = document.createElement('div');
+  textDiv.className = 'text';
+  textDiv.textContent = msg.text;
+
+  const metaDiv = document.createElement('div');
+  metaDiv.className = 'meta';
+  metaDiv.textContent = msg.duration + 's audio — ' + msg.latency_ms + 'ms latency' + (msg.flushed ? ' (flushed)' : '');
+
+  entry.appendChild(langDiv);
+  entry.appendChild(textDiv);
+  entry.appendChild(metaDiv);
+
+  transcriptBox.appendChild(entry);
+  transcriptBox.scrollTop = transcriptBox.scrollHeight;
+}
+
+async function toggleRecording() {
+  if (isRecording) {
+    stopRecording();
+  } else {
+    await startRecording();
+  }
+}
+
+function downsample(float32, fromRate, toRate) {
+  if (fromRate === toRate) return float32;
+  const ratio = fromRate / toRate;
+  const newLength = Math.round(float32.length / ratio);
+  const result = new Float32Array(newLength);
+  for (let i = 0; i < newLength; i++) {
+    const srcIndex = i * ratio;
+    const low = Math.floor(srcIndex);
+    const high = Math.min(low + 1, float32.length - 1);
+    const frac = srcIndex - low;
+    result[i] = float32[low] * (1 - frac) + float32[high] * frac;
+  }
+  return result;
+}
+
+async function startRecording() {
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+    });
+  } catch (err) {
+    log('Microphone access denied: ' + err.message);
+    return;
+  }
+
+  // Use native sample rate, then downsample to 16kHz
+  audioContext = new AudioContext();
+  const nativeRate = audioContext.sampleRate;
+  log('Mic sample rate: ' + nativeRate + 'Hz, resampling to ' + SAMPLE_RATE + 'Hz');
+  const source = audioContext.createMediaStreamSource(mediaStream);
+
+  processor = audioContext.createScriptProcessor(4096, 1, 1);
+  processor.onaudioprocess = (e) => {
+    if (!isRecording || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+    const float32 = e.inputBuffer.getChannelData(0);
+    const resampled = downsample(float32, nativeRate, SAMPLE_RATE);
+    // Convert float32 to int16 PCM
+    const int16 = new Int16Array(resampled.length);
+    for (let i = 0; i < resampled.length; i++) {
+      const s = Math.max(-1, Math.min(1, resampled[i]));
+      int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    ws.send(int16.buffer);
+  };
+
+  source.connect(processor);
+  processor.connect(audioContext.destination);
+
+  // Send start message
+  sessionId++;
+  const lang = langSelect.value;
+  ws.send(JSON.stringify({ type: 'start', lang: lang, session_id: 'test_' + sessionId }));
+
+  isRecording = true;
+  recordBtn.textContent = 'Stop Recording';
+  recordBtn.classList.add('active');
+  setStatus('Recording — ' + lang, 'recording');
+  log('Recording started (' + lang + ')');
+}
+
+function stopRecording() {
+  isRecording = false;
+
+  if (processor) { processor.disconnect(); processor = null; }
+  if (audioContext) { audioContext.close(); audioContext = null; }
+  if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'stop' }));
+  }
+
+  recordBtn.textContent = 'Start Recording';
+  recordBtn.classList.remove('active');
+  setStatus('Connected', 'connected');
+  log('Recording stopped');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+# Core ML / inference
+transformers
+numpy
+onnxruntime
+safetensors
+
+# Audio decoding (libsndfile wrapper — WAV/FLAC/OGG)
+soundfile
+
+# WebSocket server
+websockets>=16.0
+
+# HuggingFace model download
+huggingface_hub
+
+# Note: torch and torchaudio are installed separately in the Dockerfile
+# with --index-url https://download.pytorch.org/whl/cpu for CPU-only builds.

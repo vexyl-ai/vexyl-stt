@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VEXYL-STT Batch Test</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .container { width: 560px; padding: 32px; background: #16213e; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #888; margin-bottom: 24px; }
+  .section { margin-bottom: 24px; }
+  .section-title { font-size: 14px; font-weight: 600; color: #e94560; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  label { display: block; font-size: 13px; color: #aaa; margin-bottom: 4px; }
+  input[type="text"], select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #333; background: #0f3460; color: #eee; font-size: 14px; margin-bottom: 12px; }
+  input[type="text"]:focus, select:focus { outline: none; border-color: #e94560; }
+  .input-tabs { display: flex; gap: 0; margin-bottom: 12px; }
+  .input-tab { flex: 1; padding: 10px; text-align: center; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid #333; background: #0f3460; color: #888; transition: all 0.2s; }
+  .input-tab:first-child { border-radius: 8px 0 0 8px; }
+  .input-tab:last-child { border-radius: 0 8px 8px 0; }
+  .input-tab.active { background: #e94560; color: #fff; border-color: #e94560; }
+  .input-panel { display: none; }
+  .input-panel.active { display: block; }
+  .file-drop { border: 2px dashed #333; border-radius: 8px; padding: 24px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 12px; }
+  .file-drop:hover, .file-drop.dragover { border-color: #e94560; background: rgba(233,69,96,0.05); }
+  .file-drop.has-file { border-color: #00c853; border-style: solid; }
+  .file-drop input { display: none; }
+  .file-drop .icon { font-size: 28px; margin-bottom: 8px; }
+  .file-drop .label { font-size: 14px; color: #888; }
+  .file-drop .filename { font-size: 14px; color: #00c853; font-weight: 600; }
+  .mic-area { text-align: center; padding: 20px; }
+  .mic-btn { width: 80px; height: 80px; border-radius: 50%; border: 3px solid #333; background: #0f3460; color: #888; font-size: 32px; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; }
+  .mic-btn:hover { border-color: #e94560; color: #e94560; }
+  .mic-btn.recording { border-color: #ff1744; background: rgba(255,23,68,0.15); color: #ff1744; animation: pulse 1s infinite; }
+  .mic-btn.has-audio { border-color: #00c853; color: #00c853; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+  .mic-status { font-size: 13px; color: #888; margin-top: 12px; }
+  .mic-status .duration { font-family: monospace; font-size: 16px; color: #eee; }
+  .mic-preview { display: flex; align-items: center; gap: 12px; margin-top: 12px; justify-content: center; }
+  .mic-preview button { width: auto; padding: 8px 16px; font-size: 13px; }
+  .row { display: flex; gap: 12px; align-items: flex-end; }
+  .row > * { flex: 1; }
+  button { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; width: 100%; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: #e94560; color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: #ff1744; }
+  .btn-secondary { background: #0f3460; color: #eee; border: 1px solid #444; }
+  .btn-secondary:hover:not(:disabled) { background: #1a4a8a; }
+  .btn-small { padding: 8px 14px; font-size: 13px; width: auto; }
+  .jobs-list { display: flex; flex-direction: column; gap: 8px; }
+  .job-card { background: #0f3460; border-radius: 8px; padding: 14px; border-left: 4px solid #555; }
+  .job-card.queued { border-left-color: #ffc107; }
+  .job-card.processing { border-left-color: #2196f3; }
+  .job-card.completed { border-left-color: #00c853; }
+  .job-card.failed { border-left-color: #ff1744; }
+  .job-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .job-id { font-size: 13px; font-family: monospace; color: #ccc; }
+  .job-status { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 4px; }
+  .job-status.queued { background: rgba(255,193,7,0.2); color: #ffc107; }
+  .job-status.processing { background: rgba(33,150,243,0.2); color: #2196f3; }
+  .job-status.completed { background: rgba(0,200,83,0.2); color: #00c853; }
+  .job-status.failed { background: rgba(255,23,68,0.2); color: #ff1744; }
+  .job-meta { font-size: 12px; color: #666; margin-bottom: 4px; }
+  .job-transcript { font-size: 14px; color: #eee; background: #1a1a2e; padding: 10px 12px; border-radius: 6px; margin-top: 8px; line-height: 1.5; }
+  .job-error { font-size: 13px; color: #ff1744; margin-top: 6px; }
+  .job-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .health-box { background: #0f3460; border-radius: 8px; padding: 14px; font-family: monospace; font-size: 13px; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; color: #aaa; }
+  .empty-state { text-align: center; padding: 24px; color: #555; font-style: italic; font-size: 14px; }
+  .log { margin-top: 16px; font-size: 11px; color: #555; max-height: 80px; overflow-y: auto; }
+  .log div { padding: 1px 0; }
+  .log .error { color: #ff1744; }
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>VEXYL-STT Batch</h1>
+  <p class="subtitle">REST API test client — upload files or record from mic for async transcription</p>
+
+  <!-- Server Config -->
+  <div class="section">
+    <div class="row" style="align-items: flex-end;">
+      <div style="flex: 2;">
+        <label>Server URL</label>
+        <input type="text" id="serverUrl" value="http://127.0.0.1:8091" placeholder="http://localhost:8080">
+      </div>
+      <div style="flex: 1;">
+        <label>API Key (optional)</label>
+        <input type="text" id="apiKey" value="" placeholder="your-secret">
+      </div>
+    </div>
+    <button class="btn-secondary" onclick="fetchHealth()">Check Health</button>
+    <div id="healthBox" class="health-box" style="display:none; margin-top: 10px;"></div>
+  </div>
+
+  <!-- Input Source -->
+  <div class="section">
+    <div class="section-title">Submit Batch Job</div>
+
+    <div class="input-tabs">
+      <div class="input-tab active" onclick="switchTab('file')">Upload File</div>
+      <div class="input-tab" onclick="switchTab('mic')">Record from Mic</div>
+    </div>
+
+    <!-- File upload panel -->
+    <div class="input-panel active" id="panel-file">
+      <div class="file-drop" id="fileDrop" onclick="document.getElementById('fileInput').click()">
+        <input type="file" id="fileInput" accept=".wav,.mp3,.flac,.ogg,.m4a" onchange="onFileSelected(this)">
+        <div class="icon" id="fileIcon">&#128190;</div>
+        <div class="label" id="fileLabel">Click or drag an audio file here<br><small>WAV, MP3, FLAC, OGG, M4A — max 25 MB</small></div>
+      </div>
+    </div>
+
+    <!-- Mic recording panel -->
+    <div class="input-panel" id="panel-mic">
+      <div class="mic-area">
+        <button class="mic-btn" id="micBtn" onclick="toggleMic()">&#127908;</button>
+        <div class="mic-status" id="micStatus">Click to start recording</div>
+        <div class="mic-preview" id="micPreview" style="display:none;">
+          <audio id="micAudio" controls style="height:36px;"></audio>
+          <button class="btn-secondary btn-small" onclick="discardRecording()">Discard</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Language</label>
+        <select id="langSelect">
+          <option value="hi-IN">Hindi (hi-IN)</option>
+          <option value="ml-IN">Malayalam (ml-IN)</option>
+          <option value="ta-IN">Tamil (ta-IN)</option>
+          <option value="te-IN">Telugu (te-IN)</option>
+          <option value="kn-IN">Kannada (kn-IN)</option>
+          <option value="bn-IN">Bengali (bn-IN)</option>
+          <option value="gu-IN">Gujarati (gu-IN)</option>
+          <option value="mr-IN">Marathi (mr-IN)</option>
+          <option value="pa-IN">Punjabi (pa-IN)</option>
+          <option value="or-IN">Odia (or-IN)</option>
+          <option value="as-IN">Assamese (as-IN)</option>
+          <option value="ur-IN">Urdu (ur-IN)</option>
+          <option value="sa-IN">Sanskrit (sa-IN)</option>
+          <option value="ne-IN">Nepali (ne-IN)</option>
+        </select>
+      </div>
+      <div>
+        <button class="btn-primary" id="submitBtn" disabled onclick="submitJob()">Submit Job</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Jobs -->
+  <div class="section">
+    <div class="section-title">Jobs</div>
+    <div id="jobsList">
+      <div class="empty-state">No jobs submitted yet</div>
+    </div>
+  </div>
+
+  <div class="log" id="logBox"></div>
+</div>
+
+<script>
+const SAMPLE_RATE = 16000;
+
+let selectedFile = null;   // File or Blob to submit
+let activeTab = 'file';
+const jobs = [];
+let pollTimers = {};
+
+// Mic recording state
+let micStream = null;
+let micContext = null;
+let micProcessor = null;
+let micChunks = [];        // Float32Array chunks at 16kHz
+let micRecording = false;
+let micTimerInterval = null;
+let micStartTime = 0;
+
+const logBox = document.getElementById('logBox');
+const fileDrop = document.getElementById('fileDrop');
+
+function log(msg, isError) {
+  const d = document.createElement('div');
+  d.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  if (isError) d.className = 'error';
+  logBox.appendChild(d);
+  logBox.scrollTop = logBox.scrollHeight;
+  console[isError ? 'error' : 'log'](msg);
+}
+
+function getBaseUrl() {
+  return document.getElementById('serverUrl').value.replace(/\/+$/, '');
+}
+
+function getHeaders() {
+  const headers = {};
+  const key = document.getElementById('apiKey').value.trim();
+  if (key) headers['X-API-Key'] = key;
+  return headers;
+}
+
+// ── Tabs ──
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.input-tab').forEach((el, i) => {
+    el.classList.toggle('active', (i === 0 && tab === 'file') || (i === 1 && tab === 'mic'));
+  });
+  document.getElementById('panel-file').classList.toggle('active', tab === 'file');
+  document.getElementById('panel-mic').classList.toggle('active', tab === 'mic');
+
+  // Reset selection when switching tabs
+  selectedFile = null;
+  document.getElementById('submitBtn').disabled = true;
+
+  if (tab === 'file') {
+    // Stop mic if recording
+    if (micRecording) stopMic();
+  }
+}
+
+// ── Health ──
+
+async function fetchHealth() {
+  const box = document.getElementById('healthBox');
+  box.style.display = 'block';
+  box.textContent = 'Loading...';
+  try {
+    const res = await fetch(getBaseUrl() + '/health', { headers: getHeaders() });
+    const data = await res.json();
+    box.textContent = JSON.stringify(data, null, 2);
+    log('Health check: ' + data.status);
+  } catch (err) {
+    box.textContent = 'Error: ' + err.message;
+    log('Health check failed: ' + err.message, true);
+  }
+}
+
+// ── File Selection ──
+
+function onFileSelected(input) {
+  if (input.files.length > 0) setFile(input.files[0]);
+}
+
+function setFile(file) {
+  const maxSize = 25 * 1024 * 1024;
+  if (file.size > maxSize) {
+    log('File too large: ' + (file.size / (1024*1024)).toFixed(1) + ' MB (max 25 MB)', true);
+    return;
+  }
+  selectedFile = file;
+  document.getElementById('fileIcon').textContent = '\u2705';
+  document.getElementById('fileLabel').innerHTML =
+    '<span class="filename">' + file.name + '</span><br><small>' +
+    (file.size / 1024).toFixed(1) + ' KB</small>';
+  fileDrop.classList.add('has-file');
+  document.getElementById('submitBtn').disabled = false;
+  log('File selected: ' + file.name);
+}
+
+fileDrop.addEventListener('dragover', (e) => { e.preventDefault(); fileDrop.classList.add('dragover'); });
+fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('dragover'));
+fileDrop.addEventListener('drop', (e) => {
+  e.preventDefault();
+  fileDrop.classList.remove('dragover');
+  if (e.dataTransfer.files.length > 0) setFile(e.dataTransfer.files[0]);
+});
+
+// ── Mic Recording ──
+
+function downsample(float32, fromRate, toRate) {
+  if (fromRate === toRate) return float32;
+  const ratio = fromRate / toRate;
+  const newLength = Math.round(float32.length / ratio);
+  const result = new Float32Array(newLength);
+  for (let i = 0; i < newLength; i++) {
+    const srcIndex = i * ratio;
+    const low = Math.floor(srcIndex);
+    const high = Math.min(low + 1, float32.length - 1);
+    const frac = srcIndex - low;
+    result[i] = float32[low] * (1 - frac) + float32[high] * frac;
+  }
+  return result;
+}
+
+function encodeWav(samples, sampleRate) {
+  // samples: Float32Array, mono
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const byteRate = sampleRate * numChannels * bitsPerSample / 8;
+  const blockAlign = numChannels * bitsPerSample / 8;
+  const dataSize = samples.length * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  function writeStr(offset, str) {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  }
+
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);            // chunk size
+  view.setUint16(20, 1, true);             // PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true);
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    offset += 2;
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0');
+}
+
+async function toggleMic() {
+  if (micRecording) {
+    stopMic();
+  } else {
+    await startMic();
+  }
+}
+
+async function startMic() {
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+    });
+  } catch (err) {
+    log('Microphone access denied: ' + err.message, true);
+    return;
+  }
+
+  micChunks = [];
+  micContext = new AudioContext();
+  const nativeRate = micContext.sampleRate;
+  const source = micContext.createMediaStreamSource(micStream);
+
+  micProcessor = micContext.createScriptProcessor(4096, 1, 1);
+  micProcessor.onaudioprocess = (e) => {
+    if (!micRecording) return;
+    const float32 = e.inputBuffer.getChannelData(0);
+    const resampled = downsample(new Float32Array(float32), nativeRate, SAMPLE_RATE);
+    micChunks.push(resampled);
+  };
+
+  source.connect(micProcessor);
+  micProcessor.connect(micContext.destination);
+
+  micRecording = true;
+  micStartTime = Date.now();
+
+  const micBtn = document.getElementById('micBtn');
+  const micStatus = document.getElementById('micStatus');
+  micBtn.classList.add('recording');
+  micBtn.innerHTML = '&#9632;'; // stop square
+  document.getElementById('micPreview').style.display = 'none';
+
+  micTimerInterval = setInterval(() => {
+    const elapsed = (Date.now() - micStartTime) / 1000;
+    micStatus.innerHTML = 'Recording... <span class="duration">' + formatTime(elapsed) + '</span>';
+  }, 200);
+
+  log('Mic recording started (' + nativeRate + 'Hz -> ' + SAMPLE_RATE + 'Hz)');
+}
+
+function stopMic() {
+  micRecording = false;
+  clearInterval(micTimerInterval);
+
+  if (micProcessor) { micProcessor.disconnect(); micProcessor = null; }
+  if (micContext) { micContext.close(); micContext = null; }
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+
+  // Merge chunks into one Float32Array
+  const totalLength = micChunks.reduce((acc, c) => acc + c.length, 0);
+  const merged = new Float32Array(totalLength);
+  let offset = 0;
+  for (const chunk of micChunks) {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  }
+  micChunks = [];
+
+  const durationSecs = merged.length / SAMPLE_RATE;
+  if (durationSecs < 0.3) {
+    log('Recording too short (' + durationSecs.toFixed(1) + 's), discarded', true);
+    resetMicUI();
+    return;
+  }
+
+  // Encode as WAV
+  const wavBlob = encodeWav(merged, SAMPLE_RATE);
+  const wavFile = new File([wavBlob], 'recording.wav', { type: 'audio/wav' });
+
+  selectedFile = wavFile;
+
+  // Update UI
+  const micBtn = document.getElementById('micBtn');
+  const micStatus = document.getElementById('micStatus');
+  micBtn.classList.remove('recording');
+  micBtn.classList.add('has-audio');
+  micBtn.innerHTML = '&#127908;';
+  micStatus.innerHTML = 'Recorded <span class="duration">' + formatTime(durationSecs) + '</span> (' + (wavBlob.size / 1024).toFixed(1) + ' KB)';
+
+  // Show playback preview
+  const audioEl = document.getElementById('micAudio');
+  audioEl.src = URL.createObjectURL(wavBlob);
+  document.getElementById('micPreview').style.display = 'flex';
+
+  document.getElementById('submitBtn').disabled = false;
+  log('Mic recording stopped: ' + durationSecs.toFixed(1) + 's, ' + (wavBlob.size / 1024).toFixed(1) + ' KB WAV');
+}
+
+function discardRecording() {
+  selectedFile = null;
+  document.getElementById('submitBtn').disabled = true;
+  const audioEl = document.getElementById('micAudio');
+  if (audioEl.src) { URL.revokeObjectURL(audioEl.src); audioEl.src = ''; }
+  resetMicUI();
+  log('Recording discarded');
+}
+
+function resetMicUI() {
+  const micBtn = document.getElementById('micBtn');
+  micBtn.classList.remove('recording', 'has-audio');
+  micBtn.innerHTML = '&#127908;';
+  document.getElementById('micStatus').textContent = 'Click to start recording';
+  document.getElementById('micPreview').style.display = 'none';
+}
+
+// ── Submit Job ──
+
+async function submitJob() {
+  if (!selectedFile) return;
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Uploading...';
+
+  const filename = selectedFile.name || 'recording.wav';
+
+  const formData = new FormData();
+  formData.append('file', selectedFile, filename);
+  formData.append('language_code', document.getElementById('langSelect').value);
+
+  try {
+    const res = await fetch(getBaseUrl() + '/batch/transcribe', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: formData,
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      log('Submit failed (' + res.status + '): ' + (data.error || JSON.stringify(data)), true);
+      btn.textContent = 'Submit Job';
+      btn.disabled = false;
+      return;
+    }
+
+    log('Job submitted: ' + data.job_id + ' (' + data.audio_duration + 's)');
+    const job = {
+      job_id: data.job_id,
+      status: data.status,
+      language: data.language,
+      duration: data.audio_duration,
+      filename: filename,
+      transcript: null,
+      latency_ms: null,
+      error_message: null,
+    };
+    jobs.unshift(job);
+    renderJobs();
+    startPolling(job.job_id);
+
+    // Reset input
+    selectedFile = null;
+    if (activeTab === 'file') {
+      document.getElementById('fileInput').value = '';
+      document.getElementById('fileIcon').textContent = '\u{1F4BE}';
+      document.getElementById('fileLabel').innerHTML = 'Click or drag an audio file here<br><small>WAV, MP3, FLAC, OGG, M4A — max 25 MB</small>';
+      fileDrop.classList.remove('has-file');
+    } else {
+      discardRecording();
+    }
+  } catch (err) {
+    log('Submit error: ' + err.message, true);
+  }
+
+  btn.textContent = 'Submit Job';
+  btn.disabled = !selectedFile;
+}
+
+// ── Polling ──
+
+function startPolling(jobId) {
+  if (pollTimers[jobId]) return;
+  pollTimers[jobId] = setInterval(() => pollJob(jobId), 1500);
+}
+
+function stopPolling(jobId) {
+  if (pollTimers[jobId]) {
+    clearInterval(pollTimers[jobId]);
+    delete pollTimers[jobId];
+  }
+}
+
+async function pollJob(jobId) {
+  try {
+    const res = await fetch(getBaseUrl() + '/batch/status/' + jobId, { headers: getHeaders() });
+    const data = await res.json();
+    const job = jobs.find(j => j.job_id === jobId);
+    if (!job) { stopPolling(jobId); return; }
+
+    job.status = data.status;
+    if (data.status === 'completed') {
+      job.transcript = data.transcript;
+      job.latency_ms = data.latency_ms;
+      stopPolling(jobId);
+      log('Job ' + jobId + ' completed: "' + data.transcript + '" (' + data.latency_ms + 'ms)');
+    } else if (data.status === 'failed') {
+      job.error_message = data.error_message;
+      stopPolling(jobId);
+      log('Job ' + jobId + ' failed: ' + data.error_message, true);
+    }
+    renderJobs();
+  } catch (err) {
+    log('Poll error for ' + jobId + ': ' + err.message, true);
+  }
+}
+
+async function refreshJob(jobId) {
+  try {
+    const res = await fetch(getBaseUrl() + '/batch/status/' + jobId, { headers: getHeaders() });
+    const data = await res.json();
+    const job = jobs.find(j => j.job_id === jobId);
+    if (!job) return;
+    job.status = data.status;
+    if (data.transcript) job.transcript = data.transcript;
+    if (data.latency_ms) job.latency_ms = data.latency_ms;
+    if (data.error_message) job.error_message = data.error_message;
+    renderJobs();
+    log('Refreshed job ' + jobId + ': ' + data.status);
+  } catch (err) {
+    log('Refresh error: ' + err.message, true);
+  }
+}
+
+// ── Render ──
+
+function renderJobs() {
+  const container = document.getElementById('jobsList');
+  if (jobs.length === 0) {
+    container.innerHTML = '<div class="empty-state">No jobs submitted yet</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  for (const job of jobs) {
+    const card = document.createElement('div');
+    card.className = 'job-card ' + job.status;
+
+    let html = `
+      <div class="job-header">
+        <span class="job-id">${job.job_id}</span>
+        <span class="job-status ${job.status}">${job.status === 'processing' ? '<span class="spinner"></span>' : ''}${job.status}</span>
+      </div>
+      <div class="job-meta">${escapeHtml(job.filename)} &middot; ${job.language} &middot; ${job.duration}s</div>
+    `;
+
+    if (job.status === 'completed' && job.transcript !== null) {
+      html += `<div class="job-transcript">${escapeHtml(job.transcript)}</div>`;
+      html += `<div class="job-meta" style="margin-top:6px;">Inference: ${job.latency_ms}ms</div>`;
+    }
+
+    if (job.status === 'failed' && job.error_message) {
+      html += `<div class="job-error">${escapeHtml(job.error_message)}</div>`;
+    }
+
+    if (job.status === 'queued' || job.status === 'processing') {
+      html += `<div class="job-actions"><button class="btn-secondary btn-small" onclick="refreshJob('${job.job_id}')">Refresh</button></div>`;
+    }
+
+    card.innerHTML = html;
+    container.appendChild(card);
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
