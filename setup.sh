@@ -99,8 +99,8 @@ pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu -q
 print_ok "torch + torchaudio (CPU)"
 
 echo -e "  ${CYAN}Installing transformers, websockets, numpy, onnxruntime...${NC}"
-pip install transformers websockets numpy onnxruntime -q
-print_ok "transformers, websockets, numpy, onnxruntime"
+pip install transformers websockets numpy soundfile onnxruntime -q
+print_ok "transformers, websockets, numpy, soundfile, onnxruntime"
 
 # ── Step 4: HuggingFace authentication ─────────────────────
 print_step "HuggingFace authentication"
